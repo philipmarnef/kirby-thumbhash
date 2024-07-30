@@ -46,27 +46,48 @@ class ThumbHash
       'quality' => 70,
     ];
 
-    // Create a GD image from the file.
-    $image = imagecreatefromstring($file->thumb($options)->read()); // TODO: allow Imagick encoder
-    $height = imagesy($image);
-    $width = imagesx($image);
+    $imageData = $file->thumb($options)->read();
     $pixels = [];
 
-    for ($y = 0; $y < $height; $y++) {
-      for ($x = 0; $x < $width; $x++) {
-        $color_index = imagecolorat($image, $x, $y);
-        $color = imagecolorsforindex($image, $color_index);
-        $alpha = 255 - ceil($color['alpha'] * (255 / 127)); // GD only supports 7-bit alpha channel
-        $pixels[] = $color['red'];
-        $pixels[] = $color['green'];
-        $pixels[] = $color['blue'];
-        $pixels[] = $alpha;
-      }
+    if ( !empty($imageData) ) {
+      $image = imagecreatefromstring($imageData); // TODO: allow Imagick encoder
+      $thumbHeight = imagesy($image);
+      $thumbWidth = imagesx($image);
     }
 
-    $hashArray = THEncoder::RGBAToHash($width, $height, $pixels);
-    $thumbhash = THEncoder::convertHashToString($hashArray);
-    $cache->set($id, $thumbhash);
+    if ( empty($imageData) || $thumbHeight > $max || $thumbWidth > $max) {
+
+      // create grey placeholder
+      $pixel = [105,100,100,128];
+      for ($y = 0; $y < $height; $y++) {
+        for ($x = 0; $x < $width; $x++) {
+          array_push($pixels, ...$pixel);
+        }
+      }
+
+      $hashArray = THEncoder::RGBAToHash($width, $height, $pixels);
+      $thumbhash = THEncoder::convertHashToString($hashArray);
+
+    } else {
+
+      // Create a GD image from the file.
+      for ($y = 0; $y < $thumbHeight; $y++) {
+        for ($x = 0; $x < $thumbWidth; $x++) {
+          $color_index = imagecolorat($image, $x, $y);
+          $color = imagecolorsforindex($image, $color_index);
+          $alpha = 255 - ceil($color['alpha'] * (255 / 127)); // GD only supports 7-bit alpha channel
+          $pixels[] = $color['red'];
+          $pixels[] = $color['green'];
+          $pixels[] = $color['blue'];
+          $pixels[] = $alpha;
+        }
+      }
+  
+      $hashArray = THEncoder::RGBAToHash($thumbWidth, $thumbHeight, $pixels);
+      $thumbhash = THEncoder::convertHashToString($hashArray);
+      $cache->set($id, $thumbhash);
+
+    }
 
     return $thumbhash;
   }
